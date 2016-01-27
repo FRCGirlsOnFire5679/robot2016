@@ -2,7 +2,6 @@ package org.usfirst.frc.team5679.robot;
 
 import edu.wpi.first.wpilibj.AnalogGyro;
 import edu.wpi.first.wpilibj.BuiltInAccelerometer;
-import edu.wpi.first.wpilibj.CANTalon;
 import edu.wpi.first.wpilibj.CounterBase.EncodingType;
 import edu.wpi.first.wpilibj.DigitalInput;
 import edu.wpi.first.wpilibj.Encoder;
@@ -10,7 +9,7 @@ import edu.wpi.first.wpilibj.IterativeRobot;
 import edu.wpi.first.wpilibj.Joystick;
 import edu.wpi.first.wpilibj.PIDSourceType;
 import edu.wpi.first.wpilibj.RobotDrive;
-import edu.wpi.first.wpilibj.Talon;
+import edu.wpi.first.wpilibj.Victor;
 import edu.wpi.first.wpilibj.smartdashboard.SmartDashboard;
 
 /**
@@ -23,12 +22,12 @@ import edu.wpi.first.wpilibj.smartdashboard.SmartDashboard;
 
 public class Robot extends IterativeRobot 
 {
-	Talon 		leftMotor0 				= new Talon(2);
-	Talon 		leftMotor1 				= new Talon(3);
-	Talon 		rightMotor0 			= new Talon(0);
-	Talon 		rightMotor1 			= new Talon(1);
-	CANTalon 	carriageMotor 			= new CANTalon(3);
-	CANTalon	clawMotor				= new CANTalon(2);
+	Victor 		leftMotor0 				= new Victor(2);
+	Victor 		leftMotor1 				= new Victor(3);
+	Victor 		rightMotor0 			= new Victor(0);
+	Victor 		rightMotor1 			= new Victor(1);
+	Victor 	victorsBeltLeft 			= new Victor(4);
+	Victor	victorsBeltRight				= new Victor(5);
 	Joystick 	driveJoystick 			= new Joystick(0);
 	Joystick 	carriageJoystick 		= new Joystick(1);
 	RobotDrive drive = new RobotDrive(leftMotor0, leftMotor1, rightMotor0, rightMotor1);
@@ -81,6 +80,7 @@ public class Robot extends IterativeRobot
 		gyro.reset();
 		gyro.setSensitivity(.007);
 		gyro.setPIDSourceType(PIDSourceType.kRate);
+		stepToPerform = 0;
 	}
 
 	/**
@@ -92,7 +92,7 @@ public class Robot extends IterativeRobot
 
 		switch (stepToPerform) {
 		case 0:
-			nextStep = moveBase(10, 0.5, 0);
+			nextStep = moveBase(2, 0.5, 0);
 			break;
 //		case 1:
 //			nextStep = controlClaw(.6);
@@ -159,7 +159,6 @@ public class Robot extends IterativeRobot
 		SmartDashboard.putBoolean("Lower Limit", limitSwitchBottom.get());
 		SmartDashboard.putNumber("Right Encoder", rightEncoder.getDistance());
 		SmartDashboard.putNumber("Left Encoder", -1 * leftEncoder.getDistance());
-//		SmartDashboard.putNumber("clawEncoder", clawEncoder.get());
 		SmartDashboard.putNumber("Claw 3 Value", carriageJoystick.getRawAxis(1));
 		SmartDashboard.putBoolean("Claw Open Limit", limitSwitchOpen.get());
 		SmartDashboard.putBoolean("Claw Close Limit", limitSwitchClosed.get());
@@ -211,9 +210,9 @@ public class Robot extends IterativeRobot
 		}
 
 		if (moveValid) {
-			carriageMotor.set(speed);
+			victorsBeltLeft.set(speed);
 		} else {
-			carriageMotor.set(0);
+			victorsBeltLeft.set(0);
 		}
 
 		return !moveValid;
@@ -233,10 +232,10 @@ public class Robot extends IterativeRobot
 		}
 
 		if (moveValid) {
-			clawMotor.set(speed);
+			victorsBeltRight.set(speed);
 			SmartDashboard.putNumber("Claw Speed", speed);
 		} else {
-			clawMotor.set(0);
+			victorsBeltRight.set(0);
 		}
 
 		return !moveValid;
@@ -252,7 +251,6 @@ public class Robot extends IterativeRobot
 		double clawControl = carriageJoystick.getRawAxis(3);
 		boolean moveValidCarriage = true;
 		boolean moveValidClaw = true;
-		double speedAdj = driveJoystick.getThrottle();
 
 		if(driveJoystick.getRawAxis(3) > 0.2)
 			speedAdjust = 1;
@@ -285,9 +283,9 @@ public class Robot extends IterativeRobot
 		}
 
 		if (moveValidCarriage) {
-			setCANTalonSpeed(carriageMotor, UD);
+			setVictorSpeed(victorsBeltLeft, UD);
 		} else {
-			setCANTalonSpeed(carriageMotor, 0);
+			setVictorSpeed(victorsBeltLeft, 0);
 		}
 		
 		//Claw Control
@@ -304,12 +302,10 @@ public class Robot extends IterativeRobot
 		}
 
 		if (moveValidClaw) {
-			setCANTalonSpeed(clawMotor, clawControl);
+			setVictorSpeed(victorsBeltRight, clawControl);
 		} else {
-			setCANTalonSpeed(clawMotor, 0);
+			setVictorSpeed(victorsBeltRight, 0);
 		}
-		
-		debug();
 	}
 
 	/**
@@ -326,7 +322,7 @@ public class Robot extends IterativeRobot
 	 * @param speed
 	 */
 	// TODO: ADD ACCELERATION CODE
-	public void setCANTalonSpeed(CANTalon motor, double speed) {
+	public void setVictorSpeed(Victor motor, double speed) {
 		motor.set(speed * speedFactor);
 	}
 
