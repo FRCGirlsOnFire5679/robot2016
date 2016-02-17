@@ -1,12 +1,19 @@
 package org.usfirst.frc.team5679.robot;
 
+import com.ni.vision.NIVision;
+import com.ni.vision.NIVision.DrawMode;
+import com.ni.vision.NIVision.Image;
+import com.ni.vision.NIVision.RawData;
+import com.ni.vision.NIVision.ShapeMode;
 import edu.wpi.first.wpilibj.AnalogGyro;
 import edu.wpi.first.wpilibj.BuiltInAccelerometer;
+import edu.wpi.first.wpilibj.CameraServer;
 import edu.wpi.first.wpilibj.CounterBase.EncodingType;
 import edu.wpi.first.wpilibj.DigitalInput;
 import edu.wpi.first.wpilibj.Encoder;
 import edu.wpi.first.wpilibj.IterativeRobot;
 import edu.wpi.first.wpilibj.Joystick;
+import edu.wpi.first.wpilibj.Timer;
 import edu.wpi.first.wpilibj.PIDSourceType;
 import edu.wpi.first.wpilibj.RobotDrive;
 import edu.wpi.first.wpilibj.Victor;
@@ -20,54 +27,79 @@ import edu.wpi.first.wpilibj.smartdashboard.SmartDashboard;
  * directory.
  */
 
-public class Robot extends IterativeRobot 
-{
-	Victor 		leftMotor0 				= new Victor(2);
-	Victor 		leftMotor1 				= new Victor(3);
-	Victor 		rightMotor0 			= new Victor(0);
-	Victor 		rightMotor1 			= new Victor(1);
-	Victor 	victorsBeltLeft 			= new Victor(4);
-	Victor	victorsBeltRight				= new Victor(5);
-	Joystick 	driveJoystick 			= new Joystick(0);
-	Joystick 	carriageJoystick 		= new Joystick(1);
-	RobotDrive drive = new RobotDrive(leftMotor0, leftMotor1, rightMotor0, rightMotor1);
-	DigitalInput limitSwitchTop = new DigitalInput(4);
-	DigitalInput limitSwitchBottom = new DigitalInput(5);
-	DigitalInput limitSwitchOpen = new DigitalInput(8);
-	DigitalInput limitSwitchClosed = new DigitalInput(9);
+public class Robot extends IterativeRobot {
+	Victor leftMotor0 = new Victor(0);
+	Victor leftMotor1 = new Victor(1);
+	Victor rightMotor0 = new Victor(2);
+	Victor rightMotor1 = new Victor(3);
+	Victor victorsBeltLeft = new Victor(4);
+	Victor victorsBeltRight = new Victor(5);
+	Joystick driveJoystick = new Joystick(0);
+	Joystick firingJoystick = new Joystick(1);
+	RobotDrive drive = new RobotDrive(leftMotor0, leftMotor1, rightMotor0,
+			rightMotor1);
+	DigitalInput firingLimitSwitch = new DigitalInput(0);
 	AnalogGyro gyro = new AnalogGyro(0);
 	BuiltInAccelerometer accel = new BuiltInAccelerometer();
-	Encoder rightEncoder = new Encoder(0, 1, false, EncodingType.k4X);
-	Encoder leftEncoder = new Encoder(2, 3, false, EncodingType.k4X);
-	//encoder is not being used but is wired up
-	//	Encoder clawEncoder = new Encoder(6, 7, false, EncodingType.k1X);
-	//	int clawEncoderPulses = 124;
-	
+//	Encoder rightEncoder = new Encoder(0, 1, false, EncodingType.k4X);
+//	Encoder leftEncoder = new Encoder(2, 3, false, EncodingType.k4X);
+//	Encoder rightFiringEncoder = new Encoder(4, 5, false, EncodingType.k4X);
+//	Encoder leftFiringEncoder = new Encoder(6, 7, false, EncodingType.k4X);
+	NIVision.Rect rect = new NIVision.Rect(10, 10, 100, 100);
+	CameraServer camera;
+	Image frame;
+	int session;
+	RawData colorTable;
+
 	static final double startingAngle = 0;
 	static final double Kp = .02;
 	static final double speedFactor = 1;
-	static final double clawSpeedFactor = .5;
-	static final double carriageSpeedFactor = .6;
+	static final double firingSpeedFactor = 1;
+	static final double driveOffset = .9;
+	static final double wheelCircumference = 2;
+	static final double encoderPulses = 250;
+	static final double distancePerPulse = wheelCircumference / encoderPulses;
+	static final double halfSpeed = .5;
+	static final double minJoystickValue = 0.2;
+	static final double minimumSpeed = 0.1;
+	static final int imageQuality = 50;
+	static final int fullSpeed = 1;
+	static final double firingMaxDistance = 1;
+	static final String imageFileName = "/camera/image.jpg";
+
 	double speedAdjust = 1;
+	double previousFireSpeed = 0;
 	boolean runOnce = true;
 	boolean reverse = false;
 	int stepToPerform = 0;
-	static final double driveOffset = .9;
 
 	/**
 	 * This function is run when the robot is first started up and should be
 	 * used for any initialization code.
 	 */
+	@Override
 	public void robotInit() {
-		rightEncoder.setDistancePerPulse(Math.PI * .5 / 250);
-		leftEncoder.setDistancePerPulse(Math.PI * .5 / 250);
+//		rightEncoder.setDistancePerPulse(distancePerPulse);
+//		leftEncoder.setDistancePerPulse(distancePerPulse);
 
 		SmartDashboard.putString("robot init", "robot init");
 
-		rightEncoder.reset();
-		leftEncoder.reset();
-//		clawEncoder.reset();
+//		rightEncoder.reset();
+//		leftEncoder.reset();
 
+		 camera = CameraServer.getInstance();
+		 camera.setQuality(50);
+//		 the camera name (ex "cam0") can be found through the roborio web
+//		 interface
+		 camera.startAutomaticCapture("cam0");
+		//
+//		frame = NIVision.imaqCreateImage(NIVision.ImageType.IMAGE_RGB, 0);
+
+		// the camera name (ex "cam0") can be found through the roborio web
+		// interface
+//		session = NIVision.IMAQdxOpenCamera("cam0",
+//				NIVision.IMAQdxCameraControlMode.CameraControlModeController);
+//		NIVision.IMAQdxConfigureGrab(session);
 	}
 
 	/**
@@ -75,7 +107,6 @@ public class Robot extends IterativeRobot
 	 * loop.
 	 */
 	public void autonomousinit() {
-
 		SmartDashboard.putString("autonomous init", "autonomous init");
 		gyro.reset();
 		gyro.setSensitivity(.007);
@@ -86,99 +117,49 @@ public class Robot extends IterativeRobot
 	/**
 	 * This function is called periodically during autonomous control
 	 */
+	@Override
 	public void autonomousPeriodic() {
-//		double angle = gyro.getAngle();
 		boolean nextStep = false;
 
 		switch (stepToPerform) {
 		case 0:
-			nextStep = moveBase(2, 0.5, 0);
+//			nextStep = moveBase(2, 0.5, 0);
 			break;
-//		case 1:
-//			nextStep = controlClaw(.6);
-//			try {
-//				Thread.sleep(2000);
-//			} catch (InterruptedException e1) {
-//				// TODO Auto-generated catch block
-//				e1.printStackTrace();
-//			}
-//			controlClaw(0);
-//			break;
-//		case 1:
-//			nextStep = moveCarriage(-0.5);
-//			try {
-//				Thread.sleep(3000);
-//			} catch (InterruptedException e) {
-//				// TODO Auto-generated catch block
-//				e.printStackTrace();
-//			}
-//			moveCarriage(0);
-//		 	break;
-//		case 2:
-//			nextStep = moveCarriage(0.5);
-//			try {
-//				Thread.sleep(3000);
-//			} catch (InterruptedException e) {
-//				// TODO Auto-generated catch block
-//				e.printStackTrace();
-//			}
-//			moveCarriage(0);
-//		 	break;
-//		case 0:
-//			nextStep = turnBase(.6, 90);
-//			break;
-//		case 1:
-//			nextStep = turnBase(.6, 180);
-//			break;
-//		case 5:
-//			nextStep = controlClaw(-.6);
-//			try {
-//				Thread.sleep(3000);
-//			} catch (InterruptedException e) {
-//				// TODO Auto-generated catch block
-//				e.printStackTrace();
-//			}
-//			controlClaw(0);
-//			break;
 		}
 
 		if (nextStep) {
 			stepToPerform++;
 		}
-		
+
 		debug();
 	}
 
-	public void debug(){
+	public void debug() {
 		SmartDashboard.putNumber("AccelX", accel.getX());
 		SmartDashboard.putNumber("AccelY", accel.getY());
 		SmartDashboard.putNumber("AccelZ", accel.getZ());
 		SmartDashboard.putNumber("Joystick x", driveJoystick.getX());
 		SmartDashboard.putNumber("Joystick y", driveJoystick.getY());
-		SmartDashboard.putBoolean("Upper Limit", limitSwitchTop.get());
-		SmartDashboard.putBoolean("Lower Limit", limitSwitchBottom.get());
-		SmartDashboard.putNumber("Right Encoder", rightEncoder.getDistance());
-		SmartDashboard.putNumber("Left Encoder", -1 * leftEncoder.getDistance());
-		SmartDashboard.putNumber("Claw 3 Value", carriageJoystick.getRawAxis(1));
-		SmartDashboard.putBoolean("Claw Open Limit", limitSwitchOpen.get());
-		SmartDashboard.putBoolean("Claw Close Limit", limitSwitchClosed.get());
+		SmartDashboard.putBoolean("Limit", firingLimitSwitch.get());
+//		SmartDashboard.putNumber("Right Encoder", rightEncoder.getDistance());
+//		SmartDashboard
+//				.putNumber("Left Encoder", -1 * leftEncoder.getDistance());
 	}
-	
-	
+
 	/**
 	 * This function is for moving forward a set number of feet. Returns a
 	 * boolean indicating whether the movement is complete.
 	 */
-	public boolean moveBase(double feet, double speed, double angle) {
-		if (rightEncoder.getDistance() >= feet
-				|| leftEncoder.getDistance() >= feet) {
-			drive.tankDrive(0, 0);
-			return true;
-		} else {
-			drive.tankDrive(speed, speed * driveOffset);
-			return false;
-		}
-	}
+//	public boolean moveBase(double feet, double speed, double angle) {
+//		if (rightEncoder.getDistance() >= feet
+//				|| leftEncoder.getDistance() >= feet) {
+//			drive.tankDrive(0, 0);
+//			return true;
+//		} else {
+//			drive.tankDrive(speed, speed * driveOffset);
+//			return false;
+//		}
+//	}
 
 	/**
 	 * This function is for turning the base at a given speed and angle. Returns
@@ -192,136 +173,95 @@ public class Robot extends IterativeRobot
 			drive.tankDrive(speed, -speed * driveOffset);
 			return false;
 		} else {
-			drive.tankDrive(0, 0);;
+			drive.tankDrive(0, 0);
+			;
 			return true;
 		}
 	}
 
 	/**
-	 * This function is for moving the carriage.
+	 * grab an image, draw the circle, and provide it for the camera server
+	 * which will in turn send it to the dashboard.
 	 */
-	public boolean moveCarriage(double speed) {
-		boolean moveValid = true;
-
-		if (speed > 0 && limitSwitchTop.get()) {
-			moveValid = false;
-		} else if (speed < 0 && limitSwitchBottom.get()) {
-			moveValid = false;
-		}
-
-		if (moveValid) {
-			victorsBeltLeft.set(speed);
-		} else {
-			victorsBeltLeft.set(0);
-		}
-
-		return !moveValid;
-	}
-
-	/**
-	 * This function is for opening and closing the claw.
-	 */
-	//TODO check that it's moving the correct direction and that the pulses returned are correct
-	public boolean controlClaw(double speed) {
-		boolean moveValid = true;
+	public void operatorControl() {
+//		NIVision.IMAQdxStartAcquisition(session);
+//
+//		while (isOperatorControl() && isEnabled()) {
+//
+//			NIVision.IMAQdxGrab(session, frame, 1);
+//			NIVision.imaqDrawShapeOnImage(frame, frame, rect,
+//					DrawMode.DRAW_VALUE, ShapeMode.SHAPE_OVAL, 0.0f);
+//
+//			CameraServer.getInstance().setImage(frame);
+//
+////			if (snapshotButton) {
+////				NIVision.imaqWriteJPEGFile(frame, imageFileName, imageQuality,
+////						colorTable);
+////			}
+//
+//			/** robot code here! **/
+//			Timer.delay(0.005); // wait for a motor update time
+//		}
+//		NIVision.IMAQdxStopAcquisition(session);
 		
-		if (speed > 0 && limitSwitchOpen.get()) {
-			moveValid = false;
-		} else if (speed < 0 && limitSwitchClosed.get()) {
-			moveValid = false;
-		}
-
-		if (moveValid) {
-			victorsBeltRight.set(speed);
-			SmartDashboard.putNumber("Claw Speed", speed);
-		} else {
-			victorsBeltRight.set(0);
-		}
-
-		return !moveValid;
 	}
 
 	/**
 	 * This function is called periodically during operator control
 	 */
+	@Override
 	public void teleopPeriodic() {
 		double LP = -driveJoystick.getRawAxis(1);
 		double RP = -driveJoystick.getRawAxis(5);
-		double UD = carriageJoystick.getRawAxis(1);
-		double clawControl = carriageJoystick.getRawAxis(3);
-		boolean moveValidCarriage = true;
-		boolean moveValidClaw = true;
+		boolean fireButton = driveJoystick.getRawButton(5);
+		boolean intakeButton = driveJoystick.getRawButton(6);
+		double UD = firingJoystick.getRawAxis(1);
 
-		if(driveJoystick.getRawAxis(3) > 0.2)
-			speedAdjust = 1;
-		else if(driveJoystick.getRawAxis(2) > 0.2)
-			speedAdjust = .5;
+		if (driveJoystick.getRawAxis(3) > minJoystickValue)
+			speedAdjust = fullSpeed;
+		else if (driveJoystick.getRawAxis(2) > minJoystickValue)
+			speedAdjust = halfSpeed;
 		else
 			speedAdjust = .7;
-		
-		if (Math.abs(LP) < 0.1) {
+
+		if (Math.abs(LP) < minimumSpeed) {
 			LP = 0;
 
-			if (Math.abs(RP) < 0.1) {
+			if (Math.abs(RP) < minimumSpeed) {
 				RP = 0;
 			}
 		}
 
 		setRobotDriveSpeed(drive, LP * speedAdjust, RP * speedAdjust);
 
-		//Carriage Control
-		if (Math.abs(UD) < 0.3) {
+		if (Math.abs(UD) < minimumSpeed) {
 			UD = 0;
 		}
 
-		UD = UD * carriageSpeedFactor;
-		
-		if (UD > 0 && limitSwitchTop.get()) {
-			moveValidCarriage = false;
-		} else if (UD < 0 && limitSwitchBottom.get()) {
-			moveValidCarriage = false;
-		}
-
-		if (moveValidCarriage) {
-			setVictorSpeed(victorsBeltLeft, UD);
+		previousFireSpeed = victorsBeltRight.getSpeed();
+				
+		if (fireButton && !intakeButton) {
+			setVictorSpeed(victorsBeltLeft, -fullSpeed);
+			setVictorSpeed(victorsBeltRight, fullSpeed);
+		} else if (intakeButton && !fireButton) { 
+			if (firingLimitSwitch.get()){
+				setVictorSpeed(victorsBeltLeft, fullSpeed);
+				setVictorSpeed(victorsBeltRight, -fullSpeed);	
+			}
 		} else {
 			setVictorSpeed(victorsBeltLeft, 0);
-		}
-		
-		//Claw Control
-		if (Math.abs(clawControl) < .3) {
-			clawControl = 0;
-		}
-
-	clawControl =	clawControl * clawSpeedFactor;
-		
-		if (clawControl > 0 && limitSwitchOpen.get()) {
-			moveValidClaw = false;
-		} else if (clawControl < 0 && limitSwitchClosed.get()) {
-			moveValidClaw = false;
-		}
-
-		if (moveValidClaw) {
-			setVictorSpeed(victorsBeltRight, clawControl);
-		} else {
 			setVictorSpeed(victorsBeltRight, 0);
 		}
-	}
 
-	/**
-	 * This function is called periodically during test mode
-	 */
-	public void testPeriodic() {
 	}
 
 	/**
 	 * This method sets the speed and applies the limiting speed factor for
-	 * CANTalons
+	 * Victors
 	 * 
-	 * @param motorkkk  x lo
+	 * @param motor
 	 * @param speed
 	 */
-	// TODO: ADD ACCELERATION CODE
 	public void setVictorSpeed(Victor motor, double speed) {
 		motor.set(speed * speedFactor);
 	}
@@ -334,10 +274,8 @@ public class Robot extends IterativeRobot
 	 * @param leftSpeed
 	 * @param rightSpeed
 	 */
-	// TODO: ADD ACCELERATION CODE
 	public void setRobotDriveSpeed(RobotDrive driveTrain, double leftSpeed,
 			double rightSpeed) {
 		driveTrain.tankDrive(leftSpeed * speedFactor, rightSpeed * speedFactor);
-
 	}
 }
