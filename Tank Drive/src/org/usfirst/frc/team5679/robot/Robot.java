@@ -41,10 +41,8 @@ public class Robot extends IterativeRobot {
 	DigitalInput firingLimitSwitch = new DigitalInput(0);
 	AnalogGyro gyro = new AnalogGyro(0);
 	BuiltInAccelerometer accel = new BuiltInAccelerometer();
-//	Encoder rightEncoder = new Encoder(0, 1, false, EncodingType.k4X);
-//	Encoder leftEncoder = new Encoder(2, 3, false, EncodingType.k4X);
-//	Encoder rightFiringEncoder = new Encoder(4, 5, false, EncodingType.k4X);
-//	Encoder leftFiringEncoder = new Encoder(6, 7, false, EncodingType.k4X);
+	Encoder rightEncoder = new Encoder(3, 4, false, EncodingType.k4X);
+	Encoder leftEncoder = new Encoder(1, 2, false, EncodingType.k4X);
 	NIVision.Rect rect = new NIVision.Rect(10, 10, 100, 100);
 	CameraServer camera;
 	Image frame;
@@ -55,8 +53,9 @@ public class Robot extends IterativeRobot {
 	static final double Kp = .02;
 	static final double speedFactor = 1;
 	static final double firingSpeedFactor = 1;
-	static final double driveOffset = .9;
-	static final double wheelCircumference = 2;
+	static final double driveOffset = .95;
+	// Adjust this value down for more distance in autonomous, up for less distance
+	static final double wheelCircumference = 1.43;
 	static final double encoderPulses = 250;
 	static final double distancePerPulse = wheelCircumference / encoderPulses;
 	static final double halfSpeed = .5;
@@ -79,13 +78,13 @@ public class Robot extends IterativeRobot {
 	 */
 	@Override
 	public void robotInit() {
-//		rightEncoder.setDistancePerPulse(distancePerPulse);
-//		leftEncoder.setDistancePerPulse(distancePerPulse);
+		rightEncoder.setDistancePerPulse(distancePerPulse);
+		leftEncoder.setDistancePerPulse(distancePerPulse);
 
 		SmartDashboard.putString("robot init", "robot init");
 
-//		rightEncoder.reset();
-//		leftEncoder.reset();
+		rightEncoder.reset();
+		leftEncoder.reset();
 
 		 camera = CameraServer.getInstance();
 		 camera.setQuality(50);
@@ -107,10 +106,12 @@ public class Robot extends IterativeRobot {
 	 * loop.
 	 */
 	public void autonomousinit() {
+		rightEncoder.reset();
+		leftEncoder.reset();
 		SmartDashboard.putString("autonomous init", "autonomous init");
-		gyro.reset();
-		gyro.setSensitivity(.007);
-		gyro.setPIDSourceType(PIDSourceType.kRate);
+//		gyro.reset();
+//		gyro.setSensitivity(.007);
+//		gyro.setPIDSourceType(PIDSourceType.kRate);
 		stepToPerform = 0;
 	}
 
@@ -123,7 +124,8 @@ public class Robot extends IterativeRobot {
 
 		switch (stepToPerform) {
 		case 0:
-//			nextStep = moveBase(2, 0.5, 0);
+			// adjust the first number in the movebase call for number of feet to move in autonomous
+			nextStep = moveBase(10, 0.5, 0);
 			break;
 		}
 
@@ -141,25 +143,24 @@ public class Robot extends IterativeRobot {
 		SmartDashboard.putNumber("Joystick x", driveJoystick.getX());
 		SmartDashboard.putNumber("Joystick y", driveJoystick.getY());
 		SmartDashboard.putBoolean("Limit", firingLimitSwitch.get());
-//		SmartDashboard.putNumber("Right Encoder", rightEncoder.getDistance());
-//		SmartDashboard
-//				.putNumber("Left Encoder", -1 * leftEncoder.getDistance());
+		SmartDashboard.putNumber("Right Encoder", rightEncoder.getDistance());
+		SmartDashboard.putNumber("Left Encoder", -1 * leftEncoder.getDistance());
 	}
 
 	/**
 	 * This function is for moving forward a set number of feet. Returns a
 	 * boolean indicating whether the movement is complete.
 	 */
-//	public boolean moveBase(double feet, double speed, double angle) {
-//		if (rightEncoder.getDistance() >= feet
-//				|| leftEncoder.getDistance() >= feet) {
-//			drive.tankDrive(0, 0);
-//			return true;
-//		} else {
-//			drive.tankDrive(speed, speed * driveOffset);
-//			return false;
-//		}
-//	}
+	public boolean moveBase(double feet, double speed, double angle) {
+		if (rightEncoder.getDistance() >= feet
+				|| leftEncoder.getDistance() >= feet) {
+			drive.tankDrive(0, 0);
+			return true;
+		} else {
+			drive.tankDrive(speed, speed * driveOffset);
+			return false;
+		}
+	}
 
 	/**
 	 * This function is for turning the base at a given speed and angle. Returns
@@ -211,19 +212,23 @@ public class Robot extends IterativeRobot {
 	 */
 	@Override
 	public void teleopPeriodic() {
+		rightEncoder.reset();
+		leftEncoder.reset();
 		double LP = -driveJoystick.getRawAxis(1);
 		double RP = -driveJoystick.getRawAxis(5);
-		boolean fireButton = driveJoystick.getRawButton(5);
-		boolean intakeButton = driveJoystick.getRawButton(6);
-		double UD = firingJoystick.getRawAxis(1);
+		boolean fireButton = firingJoystick.getRawButton(1);
+		boolean intakeButton = firingJoystick.getRawButton(2);
 
-		if (driveJoystick.getRawAxis(3) > minJoystickValue)
+		if (driveJoystick.getRawAxis(3) > minJoystickValue){
 			speedAdjust = fullSpeed;
-		else if (driveJoystick.getRawAxis(2) > minJoystickValue)
+		}
+		else if (driveJoystick.getRawAxis(2) > minJoystickValue) {
 			speedAdjust = halfSpeed;
-		else
+		}
+		else {
 			speedAdjust = .7;
-
+		}
+		
 		if (Math.abs(LP) < minimumSpeed) {
 			LP = 0;
 
@@ -231,14 +236,8 @@ public class Robot extends IterativeRobot {
 				RP = 0;
 			}
 		}
-
+		
 		setRobotDriveSpeed(drive, LP * speedAdjust, RP * speedAdjust);
-
-		if (Math.abs(UD) < minimumSpeed) {
-			UD = 0;
-		}
-
-		previousFireSpeed = victorsBeltRight.getSpeed();
 				
 		if (fireButton && !intakeButton) {
 			setVictorSpeed(victorsBeltLeft, -fullSpeed);
@@ -247,6 +246,9 @@ public class Robot extends IterativeRobot {
 			if (firingLimitSwitch.get()){
 				setVictorSpeed(victorsBeltLeft, fullSpeed);
 				setVictorSpeed(victorsBeltRight, -fullSpeed);	
+			} else {
+				setVictorSpeed(victorsBeltLeft, 0);
+				setVictorSpeed(victorsBeltRight, 0);
 			}
 		} else {
 			setVictorSpeed(victorsBeltLeft, 0);
