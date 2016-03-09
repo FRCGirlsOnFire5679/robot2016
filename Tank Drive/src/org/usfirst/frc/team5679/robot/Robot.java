@@ -1,10 +1,13 @@
 package org.usfirst.frc.team5679.robot;
 
+import java.util.Date;
+
 import com.ni.vision.NIVision;
 import com.ni.vision.NIVision.DrawMode;
 import com.ni.vision.NIVision.Image;
 import com.ni.vision.NIVision.RawData;
 import com.ni.vision.NIVision.ShapeMode;
+
 import edu.wpi.first.wpilibj.AnalogGyro;
 import edu.wpi.first.wpilibj.BuiltInAccelerometer;
 import edu.wpi.first.wpilibj.CameraServer;
@@ -17,6 +20,9 @@ import edu.wpi.first.wpilibj.Timer;
 import edu.wpi.first.wpilibj.PIDSourceType;
 import edu.wpi.first.wpilibj.RobotDrive;
 import edu.wpi.first.wpilibj.Victor;
+import edu.wpi.first.wpilibj.command.Command;
+import edu.wpi.first.wpilibj.command.Scheduler;
+import edu.wpi.first.wpilibj.smartdashboard.SendableChooser;
 import edu.wpi.first.wpilibj.smartdashboard.SmartDashboard;
 
 /**
@@ -48,12 +54,14 @@ public class Robot extends IterativeRobot {
 	Image frame;
 	int session;
 	RawData colorTable;
-
+	private int autonomousMode = 0; // initialize default mode
+	SendableChooser autoChooser;
+	
 	static final double startingAngle = 0;
 	static final double Kp = .02;
 	static final double speedFactor = 1;
 	static final double firingSpeedFactor = 1;
-	static final double driveOffset = .95;
+	static final double driveOffset = .98;
 	// Adjust this value down for more distance in autonomous, up for less distance
 	static final double wheelCircumference = 1.43;
 	static final double encoderPulses = 250;
@@ -71,7 +79,9 @@ public class Robot extends IterativeRobot {
 	boolean runOnce = true;
 	boolean reverse = false;
 	int stepToPerform = 0;
-
+	long startTime;
+	long fireTime = 5000;
+	
 	/**
 	 * This function is run when the robot is first started up and should be
 	 * used for any initialization code.
@@ -85,9 +95,14 @@ public class Robot extends IterativeRobot {
 
 		rightEncoder.reset();
 		leftEncoder.reset();
+		
+		autoChooser = new SendableChooser();
+		autoChooser.addDefault("Drive", 0);
+		autoChooser.addObject("Drive and Fire", 1);
+		SmartDashboard.putData("Autonomous mode chooser", autoChooser);
 
 		 camera = CameraServer.getInstance();
-		 camera.setQuality(50);
+		 camera.setQuality(30);
 //		 the camera name (ex "cam0") can be found through the roborio web
 //		 interface
 		 camera.startAutomaticCapture("cam0");
@@ -113,6 +128,8 @@ public class Robot extends IterativeRobot {
 //		gyro.setSensitivity(.007);
 //		gyro.setPIDSourceType(PIDSourceType.kRate);
 		stepToPerform = 0;
+//		autonomousCommand = (Command) autoChooser.getSelected();
+//		autonomousCommand.start();
 	}
 
 	/**
@@ -120,31 +137,48 @@ public class Robot extends IterativeRobot {
 	 */
 	@Override
 	public void autonomousPeriodic() {
+		autonomousMode = (int) autoChooser.getSelected();
+		
 		boolean nextStep = false;
-
-		switch (stepToPerform) {
-		case 0:
-			// adjust the first number in the movebase call for number of feet to move in autonomous
-			nextStep = moveBase(10, 0.5, 0);
-			break;
-		}
-
-		if (nextStep) {
-			stepToPerform++;
+		int distance = 16;
+		double speed = .7;
+		switch (autonomousMode) {
+			// Mode 0, drive
+			case 0:
+				moveBase(distance, speed, 0);
+				break;
+			// Mode 1, Drive and fire
+			case 1: 
+				switch (stepToPerform) {
+					case 0:
+						// adjust the first number in the movebase call for number of feet to move in autonomous
+						nextStep = moveBase(distance, speed, 0);
+						startTime = System.currentTimeMillis();
+						break;
+					case 1:
+						nextStep = Fire();
+						break;
+				}
+	
+				if (nextStep) {
+					stepToPerform++;
+				}
+				
+				break;
 		}
 
 		debug();
 	}
 
 	public void debug() {
-		SmartDashboard.putNumber("AccelX", accel.getX());
-		SmartDashboard.putNumber("AccelY", accel.getY());
-		SmartDashboard.putNumber("AccelZ", accel.getZ());
-		SmartDashboard.putNumber("Joystick x", driveJoystick.getX());
-		SmartDashboard.putNumber("Joystick y", driveJoystick.getY());
-		SmartDashboard.putBoolean("Limit", firingLimitSwitch.get());
-		SmartDashboard.putNumber("Right Encoder", rightEncoder.getDistance());
-		SmartDashboard.putNumber("Left Encoder", -1 * leftEncoder.getDistance());
+//		SmartDashboard.putNumber("AccelX", accel.getX());
+//		SmartDashboard.putNumber("AccelY", accel.getY());
+//		SmartDashboard.putNumber("AccelZ", accel.getZ());
+//		SmartDashboard.putNumber("Joystick x", driveJoystick.getX());
+//		SmartDashboard.putNumber("Joystick y", driveJoystick.getY());
+//		SmartDashboard.putBoolean("Limit", firingLimitSwitch.get());
+//		SmartDashboard.putNumber("Right Encoder", rightEncoder.getDistance());
+//		SmartDashboard.putNumber("Left Encoder", -1 * leftEncoder.getDistance());
 	}
 
 	/**
@@ -154,12 +188,23 @@ public class Robot extends IterativeRobot {
 	public boolean moveBase(double feet, double speed, double angle) {
 		if (rightEncoder.getDistance() >= feet
 				|| leftEncoder.getDistance() >= feet) {
+			drive.tankDrive(-.2, -.2);
 			drive.tankDrive(0, 0);
 			return true;
 		} else {
 			drive.tankDrive(speed, speed * driveOffset);
 			return false;
 		}
+	}
+	
+	/**
+	 * This function is for firing the boulder for a given amount of time. Returns
+	 * a boolean indicating whether the movement is complete.
+	 */
+	public boolean Fire() {
+		setVictorSpeed(victorsBeltLeft, -fullSpeed);
+		setVictorSpeed(victorsBeltRight, fullSpeed);
+		return true;
 	}
 
 	/**
