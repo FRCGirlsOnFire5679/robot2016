@@ -24,6 +24,7 @@ import edu.wpi.first.wpilibj.command.Command;
 import edu.wpi.first.wpilibj.command.Scheduler;
 import edu.wpi.first.wpilibj.smartdashboard.SendableChooser;
 import edu.wpi.first.wpilibj.smartdashboard.SmartDashboard;
+import edu.wpi.first.wpilibj.vision.USBCamera;
 
 /**
  * The VM is configured to automatically run this class, and to call the
@@ -51,11 +52,15 @@ public class Robot extends IterativeRobot {
 	Encoder leftEncoder = new Encoder(1, 2, false, EncodingType.k4X);
 	NIVision.Rect rect = new NIVision.Rect(10, 10, 100, 100);
 	CameraServer camera;
-	Image frame;
+	//Image frame;
 	int session;
 	RawData colorTable;
 	private int autonomousMode = 0; // initialize default mode
 	SendableChooser autoChooser;
+	
+	private String cameraName = "cam0";
+	USBCamera targetCam = new USBCamera(cameraName);
+	NIVision.Image frame = NIVision.imaqCreateImage(NIVision.ImageType.IMAGE_RGB, 0);
 	
 	static final double startingAngle = 0;
 	static final double Kp = .02;
@@ -101,19 +106,14 @@ public class Robot extends IterativeRobot {
 		autoChooser.addObject("Drive and Fire", 1);
 		SmartDashboard.putData("Autonomous mode chooser", autoChooser);
 
-		 camera = CameraServer.getInstance();
-		 camera.setQuality(30);
-//		 the camera name (ex "cam0") can be found through the roborio web
-//		 interface
-		 camera.startAutomaticCapture("cam0");
-		//
-//		frame = NIVision.imaqCreateImage(NIVision.ImageType.IMAGE_RGB, 0);
-
-		// the camera name (ex "cam0") can be found through the roborio web
-		// interface
-//		session = NIVision.IMAQdxOpenCamera("cam0",
-//				NIVision.IMAQdxCameraControlMode.CameraControlModeController);
-//		NIVision.IMAQdxConfigureGrab(session);
+//		 camera = CameraServer.getInstance();
+//		 camera.setQuality(30);
+////		 the camera name (ex "cam0") can be found through the roborio web
+////		 interface
+//		 camera.startAutomaticCapture("cam0");
+		 
+		 targetCam.openCamera();
+		 targetCam.startCapture();
 	}
 
 	/**
@@ -156,7 +156,7 @@ public class Robot extends IterativeRobot {
 						startTime = System.currentTimeMillis();
 						break;
 					case 1:
-						nextStep = Fire();
+						nextStep = fire();
 						break;
 				}
 	
@@ -201,10 +201,22 @@ public class Robot extends IterativeRobot {
 	 * This function is for firing the boulder for a given amount of time. Returns
 	 * a boolean indicating whether the movement is complete.
 	 */
-	public boolean Fire() {
+	public boolean fire() {
 		setVictorSpeed(victorsBeltLeft, -fullSpeed);
 		setVictorSpeed(victorsBeltRight, fullSpeed);
 		return true;
+	}
+	
+	public void changeCamera() {
+		if (cameraName == "cam0") {
+			cameraName = "cam1";
+		}
+		else {
+			cameraName = "cam0";
+		}
+		targetCam = new USBCamera(cameraName);
+		targetCam.openCamera();
+		targetCam.startCapture();
 	}
 
 	/**
@@ -263,7 +275,12 @@ public class Robot extends IterativeRobot {
 		double RP = -driveJoystick.getRawAxis(5);
 		boolean fireButton = firingJoystick.getRawButton(1);
 		boolean intakeButton = firingJoystick.getRawButton(2);
-
+		boolean cameraButton = firingJoystick.getRawButton(3);
+		
+		if (cameraButton) {
+			changeCamera();
+		}
+		
 		if (driveJoystick.getRawAxis(3) > minJoystickValue){
 			speedAdjust = fullSpeed;
 		}
@@ -299,7 +316,12 @@ public class Robot extends IterativeRobot {
 			setVictorSpeed(victorsBeltLeft, 0);
 			setVictorSpeed(victorsBeltRight, 0);
 		}
-
+		
+		targetCam.getImage(frame);
+		//targetCam.setFPS(fps);
+		//targetCam.setBrightness(brightness);
+		
+		CameraServer.getInstance().setImage(frame);
 	}
 
 	/**
