@@ -57,6 +57,7 @@ public class Robot extends IterativeRobot {
 	RawData colorTable;
 	private int autonomousMode = 0; // initialize default mode
 	SendableChooser autoChooser;
+	String cameraDesc = "Front";
 	
 	private String cameraName = "cam0";
 	USBCamera targetCam = new USBCamera(cameraName);
@@ -105,6 +106,8 @@ public class Robot extends IterativeRobot {
 		autoChooser.addDefault("Drive", 0);
 		autoChooser.addObject("Drive and Fire", 1);
 		SmartDashboard.putData("Autonomous mode chooser", autoChooser);
+		SmartDashboard.putString("Camera", cameraDesc);
+		//SmartDashboard.putBoolean("Captured", !firingLimitSwitch.get());
 
 //		 camera = CameraServer.getInstance();
 //		 camera.setQuality(30);
@@ -209,11 +212,19 @@ public class Robot extends IterativeRobot {
 	
 	public void changeCamera() {
 		if (cameraName == "cam0") {
-			cameraName = "cam1";
+			cameraName = "cam4";
+			cameraDesc = "Back";
 		}
 		else {
 			cameraName = "cam0";
+			cameraDesc = "Front";
 		}
+
+		SmartDashboard.putString("Camera", cameraDesc);
+		
+		targetCam.stopCapture();
+		targetCam.closeCamera();
+		
 		targetCam = new USBCamera(cameraName);
 		targetCam.openCamera();
 		targetCam.startCapture();
@@ -275,7 +286,7 @@ public class Robot extends IterativeRobot {
 		double RP = -driveJoystick.getRawAxis(5);
 		boolean fireButton = firingJoystick.getRawButton(1);
 		boolean intakeButton = firingJoystick.getRawButton(2);
-		boolean cameraButton = firingJoystick.getRawButton(3);
+		boolean cameraButton = driveJoystick.getRawButton(5);
 		
 		if (cameraButton) {
 			changeCamera();
@@ -304,6 +315,7 @@ public class Robot extends IterativeRobot {
 		if (fireButton && !intakeButton) {
 			setVictorSpeed(victorsBeltLeft, -fullSpeed);
 			setVictorSpeed(victorsBeltRight, fullSpeed);
+			//SmartDashboard.putBoolean("Captured", false);
 		} else if (intakeButton && !fireButton) { 
 			if (firingLimitSwitch.get()){
 				setVictorSpeed(victorsBeltLeft, fullSpeed);
@@ -311,10 +323,12 @@ public class Robot extends IterativeRobot {
 			} else {
 				setVictorSpeed(victorsBeltLeft, 0);
 				setVictorSpeed(victorsBeltRight, 0);
+				//SmartDashboard.putBoolean("Captured", true);	
 			}
 		} else {
 			setVictorSpeed(victorsBeltLeft, 0);
 			setVictorSpeed(victorsBeltRight, 0);
+			//SmartDashboard.putBoolean("Captured", true);	
 		}
 		
 		targetCam.getImage(frame);
