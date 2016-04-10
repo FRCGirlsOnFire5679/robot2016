@@ -1,12 +1,7 @@
 package org.usfirst.frc.team5679.robot;
 
-import java.util.Date;
-
 import com.ni.vision.NIVision;
-import com.ni.vision.NIVision.DrawMode;
-import com.ni.vision.NIVision.Image;
 import com.ni.vision.NIVision.RawData;
-import com.ni.vision.NIVision.ShapeMode;
 
 import edu.wpi.first.wpilibj.AnalogGyro;
 import edu.wpi.first.wpilibj.BuiltInAccelerometer;
@@ -16,12 +11,8 @@ import edu.wpi.first.wpilibj.DigitalInput;
 import edu.wpi.first.wpilibj.Encoder;
 import edu.wpi.first.wpilibj.IterativeRobot;
 import edu.wpi.first.wpilibj.Joystick;
-import edu.wpi.first.wpilibj.Timer;
-import edu.wpi.first.wpilibj.PIDSourceType;
 import edu.wpi.first.wpilibj.RobotDrive;
 import edu.wpi.first.wpilibj.Victor;
-import edu.wpi.first.wpilibj.command.Command;
-import edu.wpi.first.wpilibj.command.Scheduler;
 import edu.wpi.first.wpilibj.smartdashboard.SendableChooser;
 import edu.wpi.first.wpilibj.smartdashboard.SmartDashboard;
 import edu.wpi.first.wpilibj.vision.USBCamera;
@@ -49,6 +40,7 @@ public class Robot extends IterativeRobot {
 	AnalogGyro gyro = new AnalogGyro(0);
 	BuiltInAccelerometer accel = new BuiltInAccelerometer();
 	Encoder rightEncoder = new Encoder(3, 4, false, EncodingType.k4X);
+	int fps = 10;
 	Encoder leftEncoder = new Encoder(1, 2, false, EncodingType.k4X);
 	NIVision.Rect rect = new NIVision.Rect(10, 10, 100, 100);
 	CameraServer camera;
@@ -75,7 +67,7 @@ public class Robot extends IterativeRobot {
 	static final double halfSpeed = .5;
 	static final double minJoystickValue = 0.2;
 	static final double minimumSpeed = 0.1;
-	static final int imageQuality = 50;
+	static final int imageQuality = 20;
 	static final int fullSpeed = 1;
 	static final double firingMaxDistance = 1;
 	static final String imageFileName = "/camera/image.jpg";
@@ -87,6 +79,8 @@ public class Robot extends IterativeRobot {
 	int stepToPerform = 0;
 	long startTime;
 	long fireTime = 5000;
+	int cameraCount = 0;
+	int cameraAttempts = 5;
 	
 	/**
 	 * This function is run when the robot is first started up and should be
@@ -116,7 +110,13 @@ public class Robot extends IterativeRobot {
 //		 camera.startAutomaticCapture("cam0");
 		 
 		 targetCam.openCamera();
-		 targetCam.startCapture();
+		 targetCam.startCapture();		 
+
+		targetCam.setFPS(fps);
+		targetCam.getImage(frame);
+		//targetCam.setBrightness(brightness);
+		
+		CameraServer.getInstance().setQuality(imageQuality);
 	}
 
 	/**
@@ -289,7 +289,7 @@ public class Robot extends IterativeRobot {
 		boolean cameraButton = driveJoystick.getRawButton(5);
 		
 		if (cameraButton) {
-			changeCamera();
+			//changeCamera();
 		}
 		
 		if (driveJoystick.getRawAxis(3) > minJoystickValue){
@@ -299,7 +299,7 @@ public class Robot extends IterativeRobot {
 			speedAdjust = halfSpeed;
 		}
 		else {
-			speedAdjust = .7;
+			speedAdjust = .85;
 		}
 		
 		if (Math.abs(LP) < minimumSpeed) {
@@ -330,12 +330,15 @@ public class Robot extends IterativeRobot {
 			setVictorSpeed(victorsBeltRight, 0);
 			//SmartDashboard.putBoolean("Captured", true);	
 		}
+		 
+		// Added during state competition to decrease number of times images are saved
+		// To attempt fixing the field camera issue.
+		if (cameraCount % cameraAttempts == 0) {
+			targetCam.getImage(frame);
+			CameraServer.getInstance().setImage(frame);
+		}
 		
-		targetCam.getImage(frame);
-		//targetCam.setFPS(fps);
-		//targetCam.setBrightness(brightness);
-		
-		CameraServer.getInstance().setImage(frame);
+		cameraCount++;
 	}
 
 	/**
